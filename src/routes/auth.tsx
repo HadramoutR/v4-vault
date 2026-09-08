@@ -52,7 +52,7 @@ function AuthRoute() {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/account`,
+            emailRedirectTo: `${window.location.origin}/auth/callback?next=/account`,
             data: { full_name: fullName },
           },
         });
@@ -73,7 +73,7 @@ function AuthRoute() {
   const google = async () => {
     setMessage(null);
     const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
+      redirect_uri: `${window.location.origin}/auth/callback?next=/account`,
     });
     if (result.error) {
       setMessage("Google sign-in failed. Please try again.");

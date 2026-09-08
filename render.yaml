@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: the-vault-inc
+    runtime: node
+    buildCommand: bun install --frozen-lockfile && bun run build:node
+    startCommand: bun run start
+    healthCheckPath: /
