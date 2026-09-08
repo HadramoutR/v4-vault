@@ -10,17 +10,17 @@ import { Footer } from "@/components/vault/Footer";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "The Vault — Apple Authorized Reseller" },
+      { title: "The Vault Inc — Apple Authorized Reseller" },
       {
         name: "description",
         content:
-          "An immersive premium shopping experience for Mac, iPhone, iPad, Apple Watch, AirPods, and accessories. Meticulously curated by The Vault.",
+          "Shop Mac, iPhone, Apple Watch, AirPods and accessories from The Vault Inc, an Apple Authorized Reseller in Nairobi.",
       },
-      { property: "og:title", content: "The Vault — Apple Authorized Reseller" },
+      { property: "og:title", content: "The Vault Inc — Apple Authorized Reseller" },
       {
         property: "og:description",
         content:
-          "An immersive premium shopping experience for Mac, iPhone, iPad, Apple Watch, AirPods, and accessories. Meticulously curated by The Vault.",
+          "Shop Mac, iPhone, Apple Watch, AirPods and accessories from The Vault Inc in Nairobi.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
