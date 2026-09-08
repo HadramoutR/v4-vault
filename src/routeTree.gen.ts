@@ -33,6 +33,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as IphoneIndexRouteImport } from './routes/iphone.index'
 import { Route as IphoneModelRouteImport } from './routes/iphone.$model'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as AuthenticatedCheckoutRouteImport } from './routes/_authenticated/checkout'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
@@ -158,6 +159,11 @@ const IphoneModelRoute = IphoneModelRouteImport.update({
   path: '/$model',
   getParentRoute: () => IphoneRoute,
 } as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/callback',
+  path: '/callback',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthenticatedCheckoutRoute = AuthenticatedCheckoutRouteImport.update({
   id: '/checkout',
   path: '/checkout',
@@ -190,7 +196,7 @@ export interface FileRoutesByFullPath {
   '/about': typeof AboutRoute
   '/accessories': typeof AccessoriesRoute
   '/applecare': typeof ApplecareRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/business': typeof BusinessRoute
   '/careers': typeof CareersRoute
   '/contact': typeof ContactRoute
@@ -210,6 +216,7 @@ export interface FileRoutesByFullPath {
   '/account': typeof AuthenticatedAccountRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/checkout': typeof AuthenticatedCheckoutRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/iphone/$model': typeof IphoneModelRoute
   '/iphone/': typeof IphoneIndexRoute
   '/api/public/payments/mpesa': typeof ApiPublicPaymentsMpesaRoute
@@ -220,7 +227,7 @@ export interface FileRoutesByTo {
   '/about': typeof AboutRoute
   '/accessories': typeof AccessoriesRoute
   '/applecare': typeof ApplecareRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/business': typeof BusinessRoute
   '/careers': typeof CareersRoute
   '/contact': typeof ContactRoute
@@ -239,6 +246,7 @@ export interface FileRoutesByTo {
   '/account': typeof AuthenticatedAccountRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/checkout': typeof AuthenticatedCheckoutRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/iphone/$model': typeof IphoneModelRoute
   '/iphone': typeof IphoneIndexRoute
   '/api/public/payments/mpesa': typeof ApiPublicPaymentsMpesaRoute
@@ -251,7 +259,7 @@ export interface FileRoutesById {
   '/about': typeof AboutRoute
   '/accessories': typeof AccessoriesRoute
   '/applecare': typeof ApplecareRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/business': typeof BusinessRoute
   '/careers': typeof CareersRoute
   '/contact': typeof ContactRoute
@@ -271,6 +279,7 @@ export interface FileRoutesById {
   '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/checkout': typeof AuthenticatedCheckoutRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/iphone/$model': typeof IphoneModelRoute
   '/iphone/': typeof IphoneIndexRoute
   '/api/public/payments/mpesa': typeof ApiPublicPaymentsMpesaRoute
@@ -303,6 +312,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/admin'
     | '/checkout'
+    | '/auth/callback'
     | '/iphone/$model'
     | '/iphone/'
     | '/api/public/payments/mpesa'
@@ -332,6 +342,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/admin'
     | '/checkout'
+    | '/auth/callback'
     | '/iphone/$model'
     | '/iphone'
     | '/api/public/payments/mpesa'
@@ -363,6 +374,7 @@ export interface FileRouteTypes {
     | '/_authenticated/account'
     | '/_authenticated/admin'
     | '/_authenticated/checkout'
+    | '/auth/callback'
     | '/iphone/$model'
     | '/iphone/'
     | '/api/public/payments/mpesa'
@@ -375,7 +387,7 @@ export interface RootRouteChildren {
   AboutRoute: typeof AboutRoute
   AccessoriesRoute: typeof AccessoriesRoute
   ApplecareRoute: typeof ApplecareRoute
-  AuthRoute: typeof AuthRoute
+  AuthRoute: typeof AuthRouteWithChildren
   BusinessRoute: typeof BusinessRoute
   CareersRoute: typeof CareersRoute
   ContactRoute: typeof ContactRoute
@@ -566,6 +578,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IphoneModelRouteImport
       parentRoute: typeof IphoneRoute
     }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_authenticated/checkout': {
       id: '/_authenticated/checkout'
       path: '/checkout'
@@ -619,6 +638,16 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface AuthRouteChildren {
+  AuthCallbackRoute: typeof AuthCallbackRoute
+}
+
+const AuthRouteChildren: AuthRouteChildren = {
+  AuthCallbackRoute: AuthCallbackRoute,
+}
+
+const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
+
 interface IphoneRouteChildren {
   IphoneModelRoute: typeof IphoneModelRoute
   IphoneIndexRoute: typeof IphoneIndexRoute
@@ -638,7 +667,7 @@ const rootRouteChildren: RootRouteChildren = {
   AboutRoute: AboutRoute,
   AccessoriesRoute: AccessoriesRoute,
   ApplecareRoute: ApplecareRoute,
-  AuthRoute: AuthRoute,
+  AuthRoute: AuthRouteWithChildren,
   BusinessRoute: BusinessRoute,
   CareersRoute: CareersRoute,
   ContactRoute: ContactRoute,
