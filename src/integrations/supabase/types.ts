@@ -73,6 +73,7 @@ export type Database = {
           order_number: string
           paid_at: string | null
           payment_method: string | null
+          payment_provider_id: string | null
           payment_reference: string | null
           status: string
           total_kes: number
@@ -90,6 +91,7 @@ export type Database = {
           order_number?: string
           paid_at?: string | null
           payment_method?: string | null
+          payment_provider_id?: string | null
           payment_reference?: string | null
           status?: string
           total_kes?: number
@@ -107,6 +109,7 @@ export type Database = {
           order_number?: string
           paid_at?: string | null
           payment_method?: string | null
+          payment_provider_id?: string | null
           payment_reference?: string | null
           status?: string
           total_kes?: number
