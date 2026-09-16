@@ -1,5 +1,6 @@
+import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { FloatingNav } from "@/components/vault/FloatingNav";
 import { Footer } from "@/components/vault/Footer";
@@ -11,6 +12,11 @@ export const Route = createFileRoute("/_authenticated/account")({
 
 function AccountRoute() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [county, setCounty] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
 
   const profile = useQuery({
     queryKey: ["profile"],
@@ -25,6 +31,8 @@ function AccountRoute() {
       return {
         email: userData.user?.email ?? "",
         full_name: prof?.full_name ?? "",
+        phone: prof?.phone ?? "",
+        county: prof?.county ?? "",
         roles: (roles ?? []).map((r) => r.role as string),
       };
     },
@@ -44,6 +52,27 @@ function AccountRoute() {
 
   const isStaff = (profile.data?.roles ?? []).some((r) => r === "admin" || r === "super_admin");
 
+  useEffect(() => {
+    if (!profile.data) return;
+    setFullName(profile.data.full_name);
+    setPhone(profile.data.phone);
+    setCounty(profile.data.county);
+  }, [profile.data]);
+
+  const saveProfile = useMutation({
+    mutationFn: async () => {
+      const { data } = await supabase.auth.getUser();
+      if (!data.user) throw new Error("Please sign in again.");
+      const { error } = await supabase.from("profiles").upsert({ id: data.user.id, full_name: fullName.trim() || null, phone: phone.trim() || null, county: county.trim() || null });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setNotice("Profile saved.");
+      void queryClient.invalidateQueries({ queryKey: ["profile"] });
+    },
+    onError: (error) => setNotice(error instanceof Error ? error.message : "Could not save your profile."),
+  });
+
   return (
     <div className="min-h-dvh bg-background">
       <FloatingNav />
@@ -62,14 +91,29 @@ function AccountRoute() {
           )}
           <button
             onClick={async () => {
+               await queryClient.cancelQueries();
+               queryClient.clear();
               await supabase.auth.signOut();
-              navigate({ to: "/" });
+               navigate({ to: "/auth", replace: true });
             }}
             className="btn-pill border border-hairline hover:bg-surface-elevated"
           >
             Sign out
           </button>
         </div>
+
+        <section className="mt-14">
+          <h2 className="text-2xl font-semibold tracking-tight">Profile.</h2>
+          <div className="mt-6 grid max-w-2xl gap-4 sm:grid-cols-2">
+            <ProfileField label="Full name" value={fullName} onChange={setFullName} />
+            <ProfileField label="Phone" value={phone} onChange={setPhone} />
+            <ProfileField label="County" value={county} onChange={setCounty} />
+          </div>
+          <button onClick={() => saveProfile.mutate()} disabled={saveProfile.isPending} className="btn-pill mt-5 bg-accent text-background disabled:opacity-50">
+            {saveProfile.isPending ? "Saving…" : "Save profile"}
+          </button>
+          {notice && <p role="status" className="mt-3 text-sm text-muted-foreground">{notice}</p>}
+        </section>
 
         <section className="mt-14">
           <h2 className="text-2xl font-semibold tracking-tight">Orders & delivery.</h2>
@@ -101,4 +145,8 @@ function AccountRoute() {
       <Footer />
     </div>
   );
+}
+
+function ProfileField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return <label className="text-sm text-muted-foreground"><span>{label}</span><input value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 h-12 w-full rounded-2xl border border-hairline bg-surface px-4 text-foreground outline-none focus:border-accent" /></label>;
 }
