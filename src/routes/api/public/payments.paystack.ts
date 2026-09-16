@@ -21,10 +21,15 @@ export const Route = createFileRoute("/api/public/payments/paystack")({
           return new Response("Invalid signature", { status: 401 });
         }
 
-        const event = JSON.parse(body) as {
+        let event: {
           event?: string;
-          data?: { reference?: string; status?: string; metadata?: { order_id?: string } };
+          data?: { reference?: string; status?: string; amount?: number; currency?: string; metadata?: { order_id?: string } };
         };
+        try {
+          event = JSON.parse(body) as typeof event;
+        } catch {
+          return new Response("Invalid payload", { status: 400 });
+        }
         if (event.event !== "charge.success" || event.data?.status !== "success") {
           return new Response("ignored");
         }
@@ -32,13 +37,21 @@ export const Route = createFileRoute("/api/public/payments/paystack")({
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const orderId = event.data.metadata?.order_id;
         const reference = event.data.reference ?? null;
+        if (!orderId || !reference || event.data.currency !== "KES") return new Response("ignored");
+        const { data: order, error: loadError } = await supabaseAdmin
+          .from("orders")
+          .select("id, total_kes, status, payment_method, payment_provider_id")
+          .eq("id", orderId)
+          .maybeSingle();
+        if (loadError) return new Response("Provider unavailable", { status: 503 });
+        if (!order || order.status !== "pending" || order.payment_method !== "paystack") return new Response("ignored");
+        if (order.payment_provider_id && order.payment_provider_id !== reference) return new Response("ignored");
+        if (event.data.amount !== order.total_kes * 100) return new Response("ignored");
         const query = supabaseAdmin
           .from("orders")
           .update({ status: "paid", payment_reference: reference, paid_at: new Date().toISOString() });
-        const { error } = orderId
-          ? await query.eq("id", orderId)
-          : await query.eq("order_number", reference ?? "");
-        if (error) return new Response(error.message, { status: 500 });
+        const { error } = await query.eq("id", orderId).eq("status", "pending");
+        if (error) return new Response("Could not confirm payment", { status: 500 });
 
         return new Response("ok");
       },

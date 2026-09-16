@@ -1,15 +1,26 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useMutation } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { FloatingNav } from "@/components/vault/FloatingNav";
 import { Footer } from "@/components/vault/Footer";
 import { useCart } from "@/lib/cart";
 import { formatKes } from "@/lib/pricing";
 import { useStoreProducts } from "@/lib/store";
 import { PAYMENT_METHODS, paymentMethod, type PaymentMethodId } from "@/lib/payments";
+import { createCheckoutOrder } from "@/lib/checkout.functions";
+import { initMpesaStkPush, initPaystackCheckout } from "@/lib/payments.functions";
 
 export const Route = createFileRoute("/_authenticated/checkout")({
+  head: () => ({ meta: [
+    { title: "Checkout — The Vault Inc" },
+    { name: "description", content: "Complete your secure KES order with M-Pesa, Paystack or payment on delivery." },
+    { property: "og:title", content: "Checkout — The Vault Inc" },
+    { property: "og:description", content: "Complete your secure order with The Vault Inc." },
+    { property: "og:type", content: "website" },
+    { name: "twitter:card", content: "summary" },
+    { name: "robots", content: "noindex" },
+  ] }),
   component: CheckoutRoute,
 });
 
@@ -25,9 +36,12 @@ function CheckoutRoute() {
   const [county, setCounty] = useState("");
   const [address, setAddress] = useState("");
   const [method, setMethod] = useState<PaymentMethodId>("mpesa");
-  const [reference, setReference] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [placed, setPlaced] = useState<{ id: string; number: string } | null>(null);
+  const [placed, setPlaced] = useState<{ id: string; number: string; totalKes: number } | null>(null);
+  const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
+  const createOrder = useServerFn(createCheckoutOrder);
+  const startPaystack = useServerFn(initPaystackCheckout);
+  const startMpesa = useServerFn(initMpesaStkPush);
 
   /** Lines the admin database says can no longer be sold. */
   const blocked = useMemo(() => {
@@ -42,43 +56,9 @@ function CheckoutRoute() {
 
   const place = useMutation({
     mutationFn: async () => {
-      const { data: userData } = await supabase.auth.getUser();
-      const uid = userData.user?.id;
-      if (!uid) throw new Error("Please sign in to place your order.");
       if (items.length === 0) throw new Error("Your bag is empty.");
       if (blocked.length > 0) throw new Error("Some items are no longer available. Remove them to continue.");
-
-      const { data: order, error: orderError } = await supabase
-        .from("orders")
-        .insert({
-          user_id: uid,
-          total_kes: subtotalKes,
-          status: "pending",
-          delivery_status: "preparing",
-          delivery_address: [address, county].filter(Boolean).join(", "),
-          payment_method: method,
-        })
-        .select("id, order_number")
-        .single();
-      if (orderError) throw orderError;
-
-      const { error: itemsError } = await supabase.from("order_items").insert(
-        items.map((i) => ({
-          order_id: order.id,
-          product_name: i.name,
-          unit_price_kes: i.priceKes,
-          quantity: i.qty,
-          variant: i.variant ?? {},
-        })),
-      );
-      if (itemsError) throw itemsError;
-
-      await supabase
-        .from("profiles")
-        .update({ full_name: fullName || null, phone: phone || null, county: county || null })
-        .eq("id", uid);
-
-      return { id: order.id as string, number: order.order_number as string };
+      return createOrder({ data: { fullName, phone, county, address, paymentMethod: method, items: items.map(({ slug, name, qty, variant }) => ({ slug, name, qty, variant })) } });
     },
     onSuccess: (o) => {
       setError(null);
@@ -87,24 +67,27 @@ function CheckoutRoute() {
     onError: (e) => setError(e instanceof Error ? e.message : "Could not place your order."),
   });
 
-  const confirm = useMutation({
+  const pay = useMutation({
     mutationFn: async () => {
-      if (!placed) return;
-      const ref =
-        reference.trim() ||
-        `${method.toUpperCase()}-${placed.number.replace("VLT-", "")}`;
-      const { error: payError } = await supabase
-        .from("orders")
-        .update({ status: "paid", payment_reference: ref, paid_at: new Date().toISOString() })
-        .eq("id", placed.id);
-      if (payError) throw payError;
-      return ref;
+      if (!placed) throw new Error("Place the order first.");
+      if (method === "manual") return { kind: "manual" as const, message: "Order reserved. Payment will be confirmed on delivery." };
+      if (method === "mpesa") {
+        const result = await startMpesa({ data: { orderId: placed.id, phone } });
+        if (!result.configured) throw new Error(result.reason);
+        return { kind: "mpesa" as const, message: result.message };
+      }
+      const result = await startPaystack({ data: { orderId: placed.id, callbackUrl: `${window.location.origin}/account` } });
+      if (!result.configured) throw new Error(result.reason);
+      if (!result.authorizationUrl) throw new Error("Paystack did not return a checkout link.");
+      window.location.assign(result.authorizationUrl);
+      return { kind: "paystack" as const, message: "Opening secure checkout…" };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      setPaymentMessage(result.message);
       clear();
-      void navigate({ to: "/account" });
+      if (result.kind === "manual") void navigate({ to: "/account" });
     },
-    onError: (e) => setError(e instanceof Error ? e.message : "Payment could not be confirmed."),
+    onError: (e) => setError(e instanceof Error ? e.message : "Payment could not be started."),
   });
 
   return (
@@ -113,7 +96,7 @@ function CheckoutRoute() {
       <main className="mx-auto max-w-[1100px] px-4 pb-24 pt-28 sm:px-6 sm:pt-36">
         <p className="eyebrow mb-4">Checkout</p>
         <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">
-          {placed ? "Confirm payment." : "Almost yours."}
+          {placed ? "Complete payment." : "Almost yours."}
         </h1>
 
         {error && (
@@ -174,23 +157,16 @@ function CheckoutRoute() {
                 <section>
                   <p className="text-sm text-muted-foreground">
                     Order <span className="font-medium text-foreground">{placed.number}</span> is reserved and
-                    awaiting payment of {formatKes(subtotalKes)} via {paymentMethod(method).label}.
+                     awaiting payment of {formatKes(placed.totalKes)} via {paymentMethod(method).label}.
                   </p>
-                  <div className="mt-6 max-w-sm">
-                    <Field
-                      label={paymentMethod(method).referenceLabel}
-                      value={reference}
-                      onChange={setReference}
-                      placeholder="Optional — we generate one if blank"
-                    />
-                  </div>
                   <button
-                    onClick={() => confirm.mutate()}
-                    disabled={confirm.isPending}
+                     onClick={() => pay.mutate()}
+                     disabled={pay.isPending}
                     className="btn-pill mt-6 bg-accent text-background hover:opacity-90 disabled:opacity-40"
                   >
-                    {confirm.isPending ? "Confirming…" : "I've paid — confirm"}
+                     {pay.isPending ? "Starting payment…" : method === "manual" ? "Reserve for pay on delivery" : method === "mpesa" ? "Send M-Pesa prompt" : "Continue to Paystack"}
                   </button>
+                   {paymentMessage && <p role="status" className="mt-4 text-sm text-muted-foreground">{paymentMessage}</p>}
                 </section>
               )}
             </div>

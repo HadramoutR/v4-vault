@@ -4,6 +4,7 @@ import { Menu, Search, ShoppingBag, User, X } from "lucide-react";
 import { IPHONE_GENERATIONS, MACS } from "@/lib/catalog";
 import { Logo } from "./Logo";
 import { useCart } from "@/lib/cart";
+import { supabase } from "@/integrations/supabase/client";
 
 const TABS = [
   { label: "Mac", to: "/mac" as const },
@@ -15,12 +16,22 @@ export function FloatingNav() {
   const [scrolled, setScrolled] = useState(false);
   const cart = useCart();
   const [open, setOpen] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    void supabase.auth.getSession().then(({ data }) => setSignedIn(Boolean(data.session)));
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN") setSignedIn(true);
+      if (event === "SIGNED_OUT") setSignedIn(false);
+    });
+    return () => data.subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -71,8 +82,8 @@ export function FloatingNav() {
               <Search className="h-[18px] w-[18px]" strokeWidth={1.6} />
             </button>
             <Link
-              to="/auth"
-              aria-label="Account"
+              to={signedIn ? "/account" : "/auth"}
+              aria-label={signedIn ? "My account" : "Sign in"}
               className="hidden h-11 w-11 place-items-center rounded-full text-foreground/70 transition-colors hover:bg-surface-elevated hover:text-foreground sm:grid"
             >
               <User className="h-[18px] w-[18px]" strokeWidth={1.6} />

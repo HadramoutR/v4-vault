@@ -8,13 +8,13 @@ import { Footer } from "@/components/vault/Footer";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Sign in — The Vault" },
+      { title: "Sign in — The Vault Inc" },
       {
         name: "description",
         content:
-          "Sign in to The Vault to track orders and delivery, save your configurations and manage your account.",
+          "Sign in to The Vault Inc to track orders and delivery, save configurations and manage your account.",
       },
-      { property: "og:title", content: "Sign in — The Vault" },
+      { property: "og:title", content: "Sign in — The Vault Inc" },
       {
         property: "og:description",
         content: "Access your Vault account, orders and delivery tracking.",
