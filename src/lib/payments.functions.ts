@@ -25,7 +25,8 @@ export const initPaystackCheckout = createServerFn({ method: "POST" })
     }
 
     const order = await loadOwnPendingOrder(context.supabase, data.orderId, context.userId);
-    const email = (context.claims?.email as string | undefined) ?? "customer@thevault.co.ke";
+    const email = context.claims?.email as string | undefined;
+    if (!email) throw new Error("Add an email address to your account before using Paystack.");
 
     const res = await fetch("https://api.paystack.co/transaction/initialize", {
       method: "POST",

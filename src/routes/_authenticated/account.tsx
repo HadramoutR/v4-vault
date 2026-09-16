@@ -139,7 +139,7 @@ function AccountRoute() {
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{o.order_number}</p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {o.status} · delivery {o.delivery_status}
+                       {o.status === "pending" ? "Awaiting payment" : o.status} · delivery {o.delivery_status}
                       {o.courier ? ` · ${o.courier}` : ""}
                       {o.tracking_number ? ` · ${o.tracking_number}` : ""}
                     </p>
