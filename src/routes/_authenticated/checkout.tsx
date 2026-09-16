@@ -12,6 +12,15 @@ import { createCheckoutOrder } from "@/lib/checkout.functions";
 import { initMpesaStkPush, initPaystackCheckout } from "@/lib/payments.functions";
 
 export const Route = createFileRoute("/_authenticated/checkout")({
+  head: () => ({ meta: [
+    { title: "Checkout — The Vault Inc" },
+    { name: "description", content: "Complete your secure KES order with M-Pesa, Paystack or payment on delivery." },
+    { property: "og:title", content: "Checkout — The Vault Inc" },
+    { property: "og:description", content: "Complete your secure order with The Vault Inc." },
+    { property: "og:type", content: "website" },
+    { name: "twitter:card", content: "summary" },
+    { name: "robots", content: "noindex" },
+  ] }),
   component: CheckoutRoute,
 });
 
@@ -63,7 +72,7 @@ function CheckoutRoute() {
       if (!placed) throw new Error("Place the order first.");
       if (method === "manual") return { kind: "manual" as const, message: "Order reserved. Payment will be confirmed on delivery." };
       if (method === "mpesa") {
-        const result = await startMpesa({ data: { orderId: placed.id, phone, callbackUrl: `${window.location.origin}/api/public/payments/mpesa` } });
+        const result = await startMpesa({ data: { orderId: placed.id, phone } });
         if (!result.configured) throw new Error(result.reason);
         return { kind: "mpesa" as const, message: result.message };
       }

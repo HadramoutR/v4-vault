@@ -16,6 +16,15 @@ import {
 } from "@/lib/store";
 
 export const Route = createFileRoute("/_authenticated/admin")({
+  head: () => ({ meta: [
+    { title: "Store console — The Vault Inc" },
+    { name: "description", content: "Manage The Vault Inc catalog, staged changes, orders and delivery status." },
+    { property: "og:title", content: "Store console — The Vault Inc" },
+    { property: "og:description", content: "Manage The Vault Inc catalog and orders." },
+    { property: "og:type", content: "website" },
+    { name: "twitter:card", content: "summary" },
+    { name: "robots", content: "noindex" },
+  ] }),
   component: AdminRoute,
 });
 

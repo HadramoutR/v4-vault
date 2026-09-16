@@ -7,6 +7,15 @@ import { Footer } from "@/components/vault/Footer";
 import { formatKes } from "@/lib/pricing";
 
 export const Route = createFileRoute("/_authenticated/account")({
+  head: () => ({ meta: [
+    { title: "My account — The Vault Inc" },
+    { name: "description", content: "Manage your Vault profile, orders, payments and delivery tracking." },
+    { property: "og:title", content: "My account — The Vault Inc" },
+    { property: "og:description", content: "Manage your Vault profile, orders, payments and delivery tracking." },
+    { property: "og:type", content: "website" },
+    { name: "twitter:card", content: "summary" },
+    { name: "robots", content: "noindex" },
+  ] }),
   component: AccountRoute,
 });
 

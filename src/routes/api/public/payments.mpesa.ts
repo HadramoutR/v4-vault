@@ -16,7 +16,7 @@ export const Route = createFileRoute("/api/public/payments/mpesa")({
           return new Response("Invalid token", { status: 401 });
         }
 
-        const payload = (await request.json()) as {
+        let payload: {
           Body?: {
             stkCallback?: {
               ResultCode?: number;
@@ -25,6 +25,11 @@ export const Route = createFileRoute("/api/public/payments/mpesa")({
             };
           };
         };
+        try {
+          payload = (await request.json()) as typeof payload;
+        } catch {
+          return new Response("Invalid payload", { status: 400 });
+        }
         const callback = payload.Body?.stkCallback;
         if (!callback || callback.ResultCode !== 0) {
           return new Response(JSON.stringify({ ResultCode: 0, ResultDesc: "Accepted" }), {
