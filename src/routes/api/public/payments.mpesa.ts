@@ -20,6 +20,7 @@ export const Route = createFileRoute("/api/public/payments/mpesa")({
           Body?: {
             stkCallback?: {
               ResultCode?: number;
+              CheckoutRequestID?: string;
               CallbackMetadata?: { Item?: { Name: string; Value?: string | number }[] };
             };
           };
@@ -33,18 +34,20 @@ export const Route = createFileRoute("/api/public/payments/mpesa")({
 
         const items = callback.CallbackMetadata?.Item ?? [];
         const receipt = items.find((i) => i.Name === "MpesaReceiptNumber")?.Value;
-        const accountRef = items.find((i) => i.Name === "AccountReference")?.Value;
-
-        if (accountRef) {
+        const checkoutRequestId = callback.CheckoutRequestID;
+        if (checkoutRequestId) {
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-          await supabaseAdmin
+          const { error } = await supabaseAdmin
             .from("orders")
             .update({
               status: "paid",
               payment_reference: receipt ? String(receipt) : null,
               paid_at: new Date().toISOString(),
             })
-            .eq("order_number", String(accountRef));
+            .eq("payment_provider_id", checkoutRequestId)
+            .eq("status", "pending")
+            .eq("payment_method", "mpesa");
+          if (error) console.error("M-Pesa callback update failed", error.message);
         }
 
         return new Response(JSON.stringify({ ResultCode: 0, ResultDesc: "Accepted" }), {

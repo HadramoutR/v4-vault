@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { normalizeMsisdn, toKoboMinorUnits } from "@/lib/payments";
+import { loadOwnPendingOrder } from "@/lib/payments.server";
 
 /**
  * Payment rail foundations. Both handlers verify the caller owns the order,
@@ -15,22 +16,6 @@ const validateInit = (data: InitInput) => {
   return data;
 };
 
-/** Look up the caller's own pending order through RLS. */
-async function loadOwnPendingOrder(
-  supabase: { from: (t: string) => any },
-  orderId: string,
-) {
-  const { data, error } = await supabase
-    .from("orders")
-    .select("id, order_number, total_kes, status")
-    .eq("id", orderId)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) throw new Error("Order not found.");
-  if (data.status !== "pending") throw new Error("This order is no longer awaiting payment.");
-  return data as { id: string; order_number: string; total_kes: number };
-}
-
 /** Paystack: create a hosted checkout session for the order. */
 export const initPaystackCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -41,7 +26,7 @@ export const initPaystackCheckout = createServerFn({ method: "POST" })
       return { configured: false as const, reason: "Paystack is not connected yet." };
     }
 
-    const order = await loadOwnPendingOrder(context.supabase, data.orderId);
+    const order = await loadOwnPendingOrder(context.supabase, data.orderId, context.userId);
     const email = (context.claims?.email as string | undefined) ?? "customer@thevault.co.ke";
 
     const res = await fetch("https://api.paystack.co/transaction/initialize", {
@@ -58,12 +43,22 @@ export const initPaystackCheckout = createServerFn({ method: "POST" })
     });
 
     const body = await res.text();
-    if (!res.ok) throw new Error(`Paystack request failed [${res.status}]: ${body}`);
+    if (!res.ok) {
+      console.error("Paystack initialization failed", res.status, body);
+      throw new Error("Paystack could not start checkout. Please try again.");
+    }
     const json = JSON.parse(body) as { data?: { authorization_url?: string; reference?: string } };
+    const reference = json.data?.reference ?? order.order_number;
+    const { error: referenceError } = await context.supabase
+      .from("orders")
+      .update({ payment_provider_id: reference } as never)
+      .eq("id", order.id)
+      .eq("user_id", context.userId);
+    if (referenceError) throw new Error("Could not save the payment session.");
     return {
       configured: true as const,
       authorizationUrl: json.data?.authorization_url ?? null,
-      reference: json.data?.reference ?? order.order_number,
+      reference,
     };
   });
 
@@ -86,14 +81,17 @@ export const initMpesaStkPush = createServerFn({ method: "POST" })
     const msisdn = normalizeMsisdn(data.phone ?? "");
     if (!msisdn) throw new Error("Enter a valid Safaricom number, e.g. 0712 345 678.");
 
-    const order = await loadOwnPendingOrder(context.supabase, data.orderId);
+    const order = await loadOwnPendingOrder(context.supabase, data.orderId, context.userId);
 
     const tokenRes = await fetch(
       `https://${env}.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials`,
       { headers: { Authorization: `Basic ${btoa(`${key}:${secretKey}`)}` } },
     );
     const tokenBody = await tokenRes.text();
-    if (!tokenRes.ok) throw new Error(`Daraja auth failed [${tokenRes.status}]: ${tokenBody}`);
+    if (!tokenRes.ok) {
+      console.error("M-Pesa authentication failed", tokenRes.status, tokenBody);
+      throw new Error("M-Pesa could not start checkout. Please try again.");
+    }
     const { access_token: token } = JSON.parse(tokenBody) as { access_token: string };
 
     const now = new Date();
@@ -121,8 +119,18 @@ export const initMpesaStkPush = createServerFn({ method: "POST" })
     });
 
     const body = await res.text();
-    if (!res.ok) throw new Error(`Daraja STK push failed [${res.status}]: ${body}`);
+    if (!res.ok) {
+      console.error("M-Pesa STK push failed", res.status, body);
+      throw new Error("M-Pesa could not send the prompt. Please try again.");
+    }
     const json = JSON.parse(body) as { CheckoutRequestID?: string; CustomerMessage?: string };
+    if (!json.CheckoutRequestID) throw new Error("M-Pesa did not return a checkout reference.");
+    const { error: referenceError } = await context.supabase
+      .from("orders")
+      .update({ payment_provider_id: json.CheckoutRequestID } as never)
+      .eq("id", order.id)
+      .eq("user_id", context.userId);
+    if (referenceError) throw new Error("Could not save the M-Pesa payment session.");
     return {
       configured: true as const,
       checkoutRequestId: json.CheckoutRequestID ?? null,
