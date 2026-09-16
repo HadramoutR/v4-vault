@@ -11,15 +11,13 @@ import { loadOwnPendingOrder } from "@/lib/payments.server";
 
 type InitInput = { orderId: string; callbackUrl?: string; phone?: string };
 
-const validateInit = (data: InitInput) => {
-  if (!data?.orderId) throw new Error("orderId is required");
-  return data;
-};
-
 /** Paystack: create a hosted checkout session for the order. */
 export const initPaystackCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(validateInit)
+  .inputValidator((data: InitInput) => {
+    if (!data?.orderId) throw new Error("orderId is required");
+    return data;
+  })
   .handler(async ({ data, context }) => {
     const secret = process.env.PAYSTACK_SECRET_KEY;
     if (!secret) {
@@ -49,11 +47,11 @@ export const initPaystackCheckout = createServerFn({ method: "POST" })
     }
     const json = JSON.parse(body) as { data?: { authorization_url?: string; reference?: string } };
     const reference = json.data?.reference ?? order.order_number;
-    const { error: referenceError } = await context.supabase
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error: referenceError } = await supabaseAdmin
       .from("orders")
-      .update({ payment_provider_id: reference } as never)
-      .eq("id", order.id)
-      .eq("user_id", context.userId);
+      .update({ payment_provider_id: reference })
+      .eq("id", order.id);
     if (referenceError) throw new Error("Could not save the payment session.");
     return {
       configured: true as const,
@@ -65,7 +63,10 @@ export const initPaystackCheckout = createServerFn({ method: "POST" })
 /** M-Pesa direct: Daraja STK push against the business short code. */
 export const initMpesaStkPush = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(validateInit)
+  .inputValidator((data: InitInput) => {
+    if (!data?.orderId) throw new Error("orderId is required");
+    return data;
+  })
   .handler(async ({ data, context }) => {
     const key = process.env.MPESA_CONSUMER_KEY;
     const secretKey = process.env.MPESA_CONSUMER_SECRET;
@@ -125,11 +126,11 @@ export const initMpesaStkPush = createServerFn({ method: "POST" })
     }
     const json = JSON.parse(body) as { CheckoutRequestID?: string; CustomerMessage?: string };
     if (!json.CheckoutRequestID) throw new Error("M-Pesa did not return a checkout reference.");
-    const { error: referenceError } = await context.supabase
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error: referenceError } = await supabaseAdmin
       .from("orders")
-      .update({ payment_provider_id: json.CheckoutRequestID } as never)
-      .eq("id", order.id)
-      .eq("user_id", context.userId);
+      .update({ payment_provider_id: json.CheckoutRequestID })
+      .eq("id", order.id);
     if (referenceError) throw new Error("Could not save the M-Pesa payment session.");
     return {
       configured: true as const,
